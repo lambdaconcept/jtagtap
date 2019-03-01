@@ -2,7 +2,7 @@ from nmigen import *
 from nmigen.hdl.rec import *
 
 
-__all__ = ["JTAGRegPortLayout", "JTAGTap"]
+__all__ = ["JTAGTap"]
 
 
 connector_layout = [
@@ -10,11 +10,11 @@ connector_layout = [
     ("tdi",  1, DIR_FANIN),
     ("tdo",  1, DIR_FANOUT),
     ("tms",  1, DIR_FANIN),
-    ("trst", 1, DIR_FANIN)
+    ("trst", 1, DIR_FANIN) # TODO
 ]
 
 
-class JTAGRegPortLayout(Layout):
+class _JTAGRegPortLayout(Layout):
     def __init__(self, fields):
         def fanout(fields):
             r = []
@@ -26,8 +26,8 @@ class JTAGRegPortLayout(Layout):
             return r
 
         full_fields = [
-            ("dat_r", fanout(fields)),
-            ("dat_w", fanout(fields)),
+            ("r", fanout(fields)),
+            ("w", fanout(fields)),
             ("update",  1, DIR_FANOUT),
             ("capture", 1, DIR_FANOUT),
             ("reset",   1, DIR_FANOUT)
@@ -36,11 +36,11 @@ class JTAGRegPortLayout(Layout):
 
 
 class JTAGTap:
-    def __init__(self, reg_map, ir_width, ir_reset):
+    def __init__(self, reg_map, ir_width=5, ir_reset=0x01):
         self.port = Record(connector_layout)
-        self.regs = {a: Record(JTAGRegPortLayout(f)) for a, f in reg_map.items()}
+        self.regs = {a: Record(_JTAGRegPortLayout(f)) for a, f in reg_map.items()}
         self.ir = Signal(ir_width, reset=ir_reset)
-        self.dr = Signal(max(len(port.dat_r) for port in self.regs.values()))
+        self.dr = Signal(max(len(port.r) for port in self.regs.values()))
 
     def elaborate(self, platform):
         m = Module()
@@ -75,7 +75,7 @@ class JTAGTap:
                 ntdi.eq(tdi)
             ]
 
-        with m.FSM():
+        with m.FSM() as fsm:
             with m.State("TEST-LOGIC-RESET"):
                 m.d.comb += (port.reset.eq(1) for port in self.regs.values())
                 m.d.sync += self.ir.eq(self.ir.reset)
@@ -101,7 +101,7 @@ class JTAGTap:
                 with m.Switch(self.ir):
                     for addr, port in self.regs.items():
                         with m.Case(addr):
-                            m.d.sync += self.dr.eq(port.dat_r)
+                            m.d.sync += self.dr.eq(port.r)
                             m.d.comb += port.capture.eq(tck_fall)
                 with m.If(tck_fall):
                     with m.If(ntms):
@@ -115,7 +115,7 @@ class JTAGTap:
                     for addr, port in self.regs.items():
                         with m.Case(addr):
                             with m.If(tck_fall):
-                                m.d.sync += self.dr.eq(Cat(self.dr[1:len(port.dat_r)], ntdi))
+                                m.d.sync += self.dr.eq(Cat(self.dr[1:len(port.r)], ntdi))
                 with m.If(tck_fall):
                     with m.If(ntms):
                         m.next = "EXIT1-DR"
@@ -144,7 +144,7 @@ class JTAGTap:
                 with m.Switch(self.ir):
                     for addr, port in self.regs.items():
                         with m.Case(addr):
-                            m.d.sync += port.dat_w.eq(self.dr)
+                            m.d.sync += port.w.eq(self.dr)
                             m.d.comb += port.update.eq(tck_fall)
                 with m.If(tck_fall):
                     with m.If(ntms):

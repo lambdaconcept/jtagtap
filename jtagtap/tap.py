@@ -1,5 +1,6 @@
 from nmigen import *
 from nmigen.hdl.rec import *
+from nmigen.lib.cdc import MultiReg
 
 
 __all__ = ["JTAGTap"]
@@ -35,7 +36,7 @@ class _JTAGRegPortLayout(Layout):
         super().__init__(full_fields)
 
 
-class JTAGTap:
+class JTAGTap(Elaboratable):
     def __init__(self, reg_map, ir_width=5, ir_reset=0x01):
         self.port = Record(connector_layout)
         self.regs = {a: Record(_JTAGRegPortLayout(f)) for a, f in reg_map.items()}

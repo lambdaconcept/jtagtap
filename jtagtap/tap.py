@@ -1,6 +1,6 @@
 from nmigen import *
 from nmigen.hdl.rec import *
-from nmigen.lib.cdc import MultiReg
+from nmigen.lib.cdc import FFSynchronizer
 
 
 __all__ = ["JTAGTap"]
@@ -50,9 +50,9 @@ class JTAGTap(Elaboratable):
         tdi = Signal.like(self.port.tdi)
         tms = Signal.like(self.port.tms)
         m.submodules += [
-            MultiReg(self.port.tck, tck),
-            MultiReg(self.port.tdi, tdi),
-            MultiReg(self.port.tms, tms)
+            FFSynchronizer(self.port.tck, tck),
+            FFSynchronizer(self.port.tdi, tdi),
+            FFSynchronizer(self.port.tms, tms)
         ]
 
         latch_tck = Signal()
